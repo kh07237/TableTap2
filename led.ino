@@ -4,8 +4,15 @@
 
 #define CYCLE_TIME 10  //ms 1サイクルの時間（delayの時間）
 #define NUM_STEP 4 //色変化ステップ数最大
+const uint8_t buttonA_GPIO = 39; //本体Aボタン
+const uint8_t buttonT_GPIO = 21; //トリガーボタン
+const uint8_t output_led_GPIO = 25; //出力LED
+const uint8_t output_GPIO = 22; //ソリッドステートリレー
+
+
 int16_t disp_table[NUM_STEP]; //ステップごとの点灯色
 int16_t count_table[NUM_STEP];//ステップごとの点灯時間　　-1:無限
+
 
 
 uint8_t DisBuff[2 + 5 * 5 * 3];
@@ -32,11 +39,21 @@ void setBuff(uint8_t Rdata, uint8_t Gdata, uint8_t Bdata)
 
 void led_setup(void) {
   M5.begin(true,false,true);
-  pinMode(25, OUTPUT);
+  pinMode(output_GPIO, OUTPUT);
+  pinMode(output_led_GPIO, OUTPUT);
+  pinMode(buttonT_GPIO, INPUT_PULLUP );
 }
 
 uint8_t  new_mode = LED_OFF; //変更後のモード（スレッド間共有）
 uint8_t  cur_mode = LED_OFF; //現在のモード
+
+void ctrl_output_led(uint8_t d)
+{
+  if(d==1)
+    digitalWrite(output_led_GPIO,0); //LowでON。
+  else
+    digitalWrite(output_led_GPIO,1);
+}
 
 //メインスレッドからコールされる関数
 void set_led_mode(uint8_t mode)
@@ -68,31 +85,43 @@ void set_color(uint8_t color)
 }
 
 
-uint8_t fButton = 0;
-bool wasLEDButtonPressed()
+uint8_t fButtonA = 0;
+uint8_t fButtonT = 0;
+bool wasButtonAPressed(){
+  if (fButtonA == 1){
+    fButtonA = 0;
+    return true;
+  }else{
+    return false;
+  }
+}
+bool wasButtonTPressed()
 {
-  if (fButton == 1){
-    fButton = 0;
+  if (fButtonT == 1){
+    fButtonT = 0;
     return true;
   }else{
     return false;
   }
 }
 
-
+/// @brief LED点滅とボタン押下検出スレッド
+/// @param arg 
 void ledtask(void* arg)
 {
+
   Serial.println("LED task started.");
   int count = 0;
   int step = 0; //色変化ステップ数
   while(1){
-#if 1
-    const uint8_t buttonA_GPIO = 39;
     if(digitalRead(buttonA_GPIO) == 0){
-      fButton = 1;
-      //Serial.println("Button pressed(ledtask_gpio).");
+      fButtonA = 1;
+      //Serial.println("Button A pressed(ledtask_gpio).");
     }
-#endif
+    if(digitalRead(buttonT_GPIO) == 0){
+      fButtonT = 1;
+      //Serial.println("Button T pressed(ledtask_gpio).");
+    }
 #if 0
     M5.update();
 #endif

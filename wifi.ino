@@ -10,7 +10,7 @@ const char* ssid = "xxxxxxxxxx";
 const char* password = "xxxxxxxxxx";
 */
 
-const IPAddress local_IP(192, 168, 10, 91);
+const IPAddress local_IP(192, 168, 10, 92);
 const IPAddress gateway(192, 168, 10, 1);
 const IPAddress subnet(255, 255, 255, 0);
 const IPAddress primaryDNS(8, 8, 8, 8); //optional

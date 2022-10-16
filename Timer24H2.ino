@@ -14,10 +14,11 @@
 #define LOOPCYCLE 1000 //ms
 #define NUM_EVENT_TIME 4
 
+//#define MODE_MANUAL   7
 #define MODE_EVER_ON  6
-#define MODE_SLEEP    5
+//#define MODE_SLEEP    5
 #define MODE_CONT_ON  4
-#define MODE_TIMER    3
+//#define MODE_TIMER    3
 #define MODE_CONT_OFF 2
 #define MODE_EVER_OFF 1
 
@@ -41,18 +42,9 @@ static String off_time[NUM_EVENT_TIME] = {"11:02","12:02","13:02","14:02"}  ; //
 static String svag_ontime[NUM_EVENT_TIME] = {"on_time1","on_time2","on_time3","on_time4"}; //server.argの引数
 static String svag_offtime[NUM_EVENT_TIME] = {"off_time1","off_time2","off_time3","off_time4"};
 
-//スリープ時間
-static String sleep_time = "60"; //分
-static  String svag_sleep_time = "sleep_time";
-//インジケーター（未使用）
-static String indicator[3]={
-"<p style='background-color:rgb(236, 16, 9)'>ON</p>",
-"<p style='background-color:rgb(16, 9, 236)'>タイマー</p>",
-"<p style='background-color:rgb(64, 64, 64)'>OFF</p>",
-};
 
 //オペレーションモード
-int opmode = MODE_EVER_ON; 
+int opmode = MODE_EVER_OFF; 
 //タイマーによる出力ON/OFF状態
 uint8_t timer_state = 0;
 //スリープタイマー ダウンカウンタ(メインループ周期でカウントダウン)
@@ -152,8 +144,6 @@ void handleRoot() {
         SetMode(MODE_CONT_ON);
     }else if (val == "0") {
         SetMode(MODE_EVER_OFF);
-    }else if (val == "3") {
-        SetMode(MODE_SLEEP);
     }
    
     uint8_t on_h, on_m, off_h, off_m;
@@ -188,15 +178,6 @@ void handleRoot() {
       Serial.print(svag_offtime[i]);Serial.print(":"); Serial.println(off_time[i]);
 
     }//for
-    //スリープ時間取得  
-    String s_sleep_time = server.arg("sleep_time");
-    Serial.print("s_sleep_time");Serial.print(":"); Serial.println(s_sleep_time);
-    char buf[5];
-    s_sleep_time.toCharArray(buf,5);
-    n_sleep_time = atoi(buf);
-    if(n_sleep_time > 600){ n_sleep_time = 60;}
-    sprintf(buf,"%d",n_sleep_time);
-    sleep_time = buf;//表示文字列に検証後文字列をセット
 
     //保存する
     write_map();
@@ -216,7 +197,7 @@ void handleRoot() {
   <meta charset=\"utf-8\">\n\
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n\
   <head>\n\
-   <title>IOTテーブルタップ</title>\n\
+   <title>IOTテーブルタップ2</title>\n\
   </head>\n\
   <body style=\"font-family: sans-serif; background-color: #ffeeaa ;\" >\n\
    <h1>タイマー設定</h1>\n\
@@ -230,7 +211,6 @@ void handleRoot() {
                <input type='text' name='off_time3' value="+off_time[2]+" style='width:100px'></br>\n\
             4：<input type='text' name='on_time4' value="+on_time[3] +" style='width:100px'>\n\
                <input type='text' name='off_time4' value="+off_time[3]+" style='width:100px'></p>\n\
-            スリープ:<input type='text' name='sleep_time' value="+sleep_time +" style='width:100px'> 分</p>\n\
         <p><input type='submit' value=' 設定 '>\n\
         <input type='reset' value='キャンセル'></p>\n\
    <h1>モード</h1>\n\
@@ -239,8 +219,7 @@ void handleRoot() {
         <button name='mode' value='0' style='width:100px;height:50px'>常時OFF</button></br></p>\n\
         <p><button name='mode' value='4' style='width:100px;height:50px'>タイマー</br>(ONで開始)</button>\n\
         <button name='mode' value='1' style='width:100px;height:50px'>タイマー</br>(OFFで開始)</button></br></P>\n\
-        <button name='mode' value='3' style='width:100px;height:50px'>スリープ</button>\n\
-      </form>\n\
+        </form>\n\
     </p>\n\
   </body>\n\
   </html>\n";
@@ -279,25 +258,6 @@ void setup(void) {
 
 
 
-  /*
-  char buf2[1024];
-  int i;
-  char *p;
-  memset(buf,0,EEBUFSIZE);
-  memset(buf2,0,1024);
-  for(i=0,p=buf2; i<EEBUFSIZE; i++){
-    sprintf(p,"%02X ",buf[i]);
-    p+=5;
-    if( i%16 == 0){
-        sprintf(p,"\r\n");
-        p+=2;
-    }
-  }
-  Serial.println("EEPROM DUMP:");
-  Serial.println(buf2);
-*/
-
-
   // Wifi接続出来たら緑に点灯 500ms表示
   set_color(LED_GREEN);
   delay(500);
@@ -317,69 +277,60 @@ server.on("/", handleRoot);
   delay(1000);
   set_color(LED_OFF);
   //初期状態にする
-  opmode = MODE_EVER_ON;
-  ctrl_output(1);
+  opmode = MODE_EVER_OFF;
+  ctrl_output(0);
+  ctrl_output_led(0);
   set_led_mode(LED_RED);
   
   //LEDタスク起動
   xTaskCreatePinnedToCore(ledtask, "ledtask", 4096, NULL, 1, NULL, 0);
 }
 
-uint8_t curennt_output_status = 0;//現在の出力状態 電源投入時、リレーはOFF。
+/// @brief 現在の出力状態 電源投入時、リレーはOFF。
+uint8_t curennt_output_status = 0;
 
 void ctrl_output(uint8_t c)
 {
   if(c==1 && curennt_output_status == 0){
     Serial.println("Output ON");
-    digitalWrite(25,1);
+    digitalWrite(22,0);//LowでON。
+    ctrl_output_led(1);
     curennt_output_status = 1;
   }
   if(c==0 && curennt_output_status == 1)
   {
     Serial.println("Output OFF");
-    digitalWrite(25,0);
+    digitalWrite(22,1);
+    ctrl_output_led(0);
     curennt_output_status = 0;
   }
 }
 
-//オペレーションモードを設定
+
+/// オペレーションモードを設定
+/// @param mode 
 void SetMode(uint8_t mode)
 {
   Serial.print("SetMode:");Serial.println(mode);
   opmode = mode;
   switch(mode){
     case MODE_EVER_ON:
-        ctrl_output(1);
       set_led_mode(LED_RED);
-      break;
-    case MODE_SLEEP:
-      set_led_mode(LED_BLINK_RED);
-      //スリープタイマー開始
-      sleep_count = (uint32_t)n_sleep_time * 60000/LOOPCYCLE;
-      Serial.print("sleep_count:");Serial.println(sleep_count);
-      break;
-    case MODE_CONT_ON:
-      timer_state = 1;
       ctrl_output(1);
-      set_led_mode(LED_BLUE);
-      break;
-    case MODE_TIMER:
-      if(timer_state == 0){
-        ctrl_output(0);
-        set_led_mode(LED_SOMETIME_BLUE);
-      }else{//timer_state == 1
-        ctrl_output(1);
-        set_led_mode(LED_BLUE);
-      }
-      break;
-    case MODE_CONT_OFF:
-      timer_state = 0;
-      ctrl_output(0);
-      set_led_mode(LED_SOMETIME_BLUE2);
       break;
     case MODE_EVER_OFF:
-        ctrl_output(0);
-      set_led_mode(LED_OFF);
+      set_led_mode(LED_RED);
+      ctrl_output(0);
+      break;
+    case MODE_CONT_ON:
+      set_led_mode(LED_BLUE);
+      timer_state = 1;
+      ctrl_output(1);
+      break;
+    case MODE_CONT_OFF:
+      set_led_mode(LED_BLUE);
+      timer_state = 0;
+      ctrl_output(0);
       break;
 
   }
@@ -389,61 +340,47 @@ void loop(void) {
   //M5.update();
   server.handleClient();
 
-#if 0
-  if (M5.Btn.wasPressed())
-#endif
-#if 1
-  if(wasLEDButtonPressed())
+  if(wasButtonAPressed())
   {
-      Serial.println("Button pressed.");
-      //トリガー入力によるモード切替
-      if(opmode == MODE_EVER_ON){
-        SetMode(MODE_SLEEP);
-      }else if(opmode == MODE_SLEEP){
+      Serial.println("ButtonA pressed.");
+      //モード切替
+      if(opmode == MODE_EVER_OFF){
+        SetMode(MODE_CONT_OFF);
+      }else if(opmode == MODE_EVER_ON){
         SetMode(MODE_CONT_ON);
-      }else if(opmode == MODE_CONT_ON){
-        SetMode(MODE_TIMER);
-      }else if(opmode == MODE_TIMER){
+      }else if(opmode == MODE_CONT_OFF){
         SetMode(MODE_EVER_OFF);
-      }else if(opmode == MODE_EVER_OFF){
+      }else if(opmode == MODE_CONT_ON){
+        SetMode(MODE_EVER_ON);
+      }
+      delay(500);
+  }else if(wasButtonTPressed()){//モード切替ボタンが押されていたときはトリガーボタンの処理はしない（なのでelseif節にある）
+      Serial.println("ButtonT pressed.");
+      if(opmode == MODE_EVER_OFF){
+        SetMode(MODE_EVER_ON);
+      }else if(opmode == MODE_EVER_ON){
+        SetMode(MODE_EVER_OFF);
+      }else if(opmode == MODE_CONT_ON){
         SetMode(MODE_CONT_OFF);
       }else if(opmode == MODE_CONT_OFF){
-        SetMode(MODE_EVER_ON);
-
+        SetMode(MODE_CONT_ON);
       }
+      delay(500);
   }
-#endif
   EVENT_TIMER ret =  CheckTimerEvent();
    if(ret == EVENT_ON){
-    if(timer_state == 0 || opmode == MODE_CONT_OFF){
-      timer_state = 1;
-      if(opmode == MODE_TIMER || opmode == MODE_CONT_OFF){
-        ctrl_output(1);
-        opmode = MODE_TIMER; //MODE_CONT_OFFだったらMODE_TIMERへ変更。
-        set_led_mode(LED_BLUE);
-      }
+    if(opmode == MODE_CONT_OFF){
+      SetMode(MODE_CONT_ON);
     }
   }else if (ret == EVENT_OFF){
-    if(timer_state == 1 || opmode == MODE_CONT_ON){
-      timer_state = 0;
-      if(opmode == MODE_TIMER || opmode == MODE_CONT_ON){
-        ctrl_output(0);
-        opmode = MODE_TIMER; //MODE_CONT_ONだったらMODE_TIMERへ変更。
-        set_led_mode(LED_SOMETIME_BLUE);
-      }
+    if(opmode == MODE_CONT_ON){
+      SetMode(MODE_CONT_OFF);
     }
   }
 
-  //スリープタイマーチェック
-  if(sleep_count > 0){
-    sleep_count--;
-    //Serial.print("sleep_count:");Serial.println(sleep_count);
-    if(sleep_count == 0 && opmode == MODE_SLEEP){
-      //スリープ発動
-      SetMode(MODE_TIMER);
-    }
-  }
 
-  wasLEDButtonPressed(); //読み捨て
+
+  wasButtonAPressed(); //読み捨て
+  wasButtonTPressed(); //読み捨て
   delay(LOOPCYCLE);
 }
